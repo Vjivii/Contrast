@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Take pixel art photos instantly">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="PixelArt">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+    <title>Pixelcam</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tiny5', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        #videoPreview {
+            display: none;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        #pixelatedPreview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .button-container {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .capture-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border: 4px solid rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .capture-button:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .capture-button-inner {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        .record-button-container {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .record-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid rgb(255, 56, 60);
+            background: rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px); 
+        }
+
+        .record-button-indicator {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #ff3b30;
+            transition: all 0.2s ease;
+        }
+
+        .record-button.recording .record-button-indicator {
+            border-radius: 0px;
+            width: 36px;
+            height: 36px;
+        }
+
+        .recording-timer {
+            position: absolute;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            z-index: 11;
+        }
+
+        .timer-bar {
+            background: #FF383C;
+            padding: 8px 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .timer-text {
+            font-family: "Tiny5", sans-serif;
+            font-size: 24px;
+            color: #fff;
+            letter-spacing: 2px;
+        }
+
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-family: "Tiny5", sans-serif;
+            font-size: 24px;
+            color: #fff;
+            letter-spacing: 2px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .permission-hint {
+            position: absolute;
+            text-align: center;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 24px;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+
+        .permission-hint.show {
+            display: block;
+        }
+
+        body.orientation-lock {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        @media (orientation: landscape) {
+            body.orientation-lock {
+                transform: rotate(90deg);
+                transform-origin: center center;
+                width: 100vh;
+                height: 100vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Initializing camera...</div>
+    </div>
+
+    <div class="error-message" id="error">
+        <div id="errorText"></div>
+        <button style="margin-top: 15px; padding: 10px 20px; background: white; color: black; border: none; border-radius: 5px; cursor: pointer;" onclick="initCamera()">Retry</button>
+    </div>
+
+    <div class="permission-hint" id="permissionHint">
+        <div>Allow camera access to use the app</div>
+    </div>
+
+    <div class="camera-container" id="cameraContainer" style="display: none;">
+        <video id="videoPreview" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <canvas id="previewCanvas"></canvas>
+        <canvas id="pixelatedPreview"></canvas>
+        <div class="record-button-container">
+            <div class="record-button" id="recordButton" onclick="toggleRecording()">
+                <div class="record-button-indicator"></div>
+            </div>
+        </div>
+        <div class="button-container" id="photoButtonContainer">
+            <div class="capture-button" id="captureButton" onclick="capturePhoto()">
+                <div class="capture-button-inner"></div>
+            </div>
+        </div>
+        <div class="recording-timer" id="recordingTimer">
+            <div class="timer-bar">
+                <span class="timer-text" id="timerText">00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="./lena.js"></script>
+    <script>
+        let stream = null;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let previewCanvas = null;
+        let previewCtx = null;
+        let displayCanvas = null;
+        let displayCtx = null;
+        let animationFrame = null;
+        let isProcessingCapture = false;
+        const CAMERA_PERMISSION_KEY = 'pixelartCameraPermission';
+        const MEDIA_TAG = 'PixelArtCam_v2';
+        const THRESHOLD_AMOUNT = 128;
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            document.body.classList.add('orientation-lock');
+            lockOrientation();
+            initCamera();
+            registerServiceWorker();
+        });
+
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered', reg))
+                    .catch(err => console.log('Service Worker registration failed', err));
+            }
+        }
+
+        async function initCamera() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').classList.remove('show');
+            document.getElementById('cameraContainer').style.display = 'none';
+
+            try {
+                video = document.getElementById('videoPreview');
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
+                displayCanvas = document.getElementById('pixelatedPreview');
+                displayCtx = displayCanvas.getContext('2d');
+                previewCanvas = document.createElement('canvas');
+                previewCtx = previewCanvas.getContext('2d');
+
+                // Request camera access
+                const constraints = {
+                    video: {
+                        facingMode: 'environment', // Use back camera
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+
+                const permissionState = await getCameraPermissionState();
+                if (permissionState === 'denied') {
+                    throw new Error('Camera access denied. Please enable it in your system settings.');
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                video.srcObject = stream;
+                await video.play();
+
+                // Set canvas size to match video
+                canvas.width = 1920;
+                canvas.height = 1080;
+
+                localStorage.setItem(CAMERA_PERMISSION_KEY, 'granted');
+                const permissionHint = document.getElementById('permissionHint');
+                if (permissionHint) {
+                    permissionHint.classList.remove('show');
+                }
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('cameraContainer').style.display = 'block';
+
+                // Start real-time thresholding preview
+                startPreview();
+
+            } catch (error) {
+                console.error('Camera error:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').classList.add('show');
+                document.getElementById('errorText').textContent = error.message || 'Unable to access camera. Please allow camera access.';
+                
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    const permissionHint = document.getElementById('permissionHint');
+                    if (permissionHint) {
+                        permissionHint.classList.add('show');
+                    }
+                }
+            }
+        }
+
+        function startPreview() {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+            function drawFrame() {
+                if (!video || video.videoWidth === 0) {
+                    animationFrame = requestAnimationFrame(drawFrame);
+                    return;
+                }
+
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                const displayWidth = window.innerWidth;
+                const displayHeight = window.innerHeight;
+
+                // Set preview canvas to video size
+                if (previewCanvas.width !== videoWidth || previewCanvas.height !== videoHeight) {
+                    previewCanvas.width = videoWidth;
+                    previewCanvas.height = videoHeight;
+                }
+
+                // Set display canvas to screen size
+                if (displayCanvas.width !== displayWidth || displayCanvas.height !== displayHeight) {
+                    displayCanvas.width = displayWidth;
+                    displayCanvas.height = displayHeight;
+                }
+
+                // Draw original video to preview canvas
+                previewCtx.drawImage(video, 0, 0);
+
+                // Apply Lena.js thresholding filter
+                const imageData = previewCtx.getImageData(0, 0, videoWidth, videoHeight);
+                LenaJS.thresholding(imageData, THRESHOLD_AMOUNT);
+                previewCtx.putImageData(imageData, 0, 0);
+
+                // Draw filtered preview to display canvas
+                displayCtx.clearRect(0, 0, displayWidth, displayHeight);
+                displayCtx.drawImage(previewCanvas, 0, 0, displayWidth, displayHeight);
+
+                animationFrame = requestAnimationFrame(drawFrame);
+            }
+
+            drawFrame();
+        }
+
+        async function capturePhoto() {
+            if (!video || !stream) return;
+            if (isProcessingCapture) return;
+
+            try {
+                isProcessingCapture = true;
+                // Stop the preview
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                    animationFrame = null;
+                }
+
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+
+                canvas.width = videoWidth;
+                canvas.height = videoHeight;
+
+                // Draw the current video frame to canvas
+                ctx.drawImage(video, 0, 0);
+
+                // Apply Lena.js thresholding filter to canvas
+                const imageData = ctx.getImageData(0, 0, videoWidth, videoHeight);
+                LenaJS.thresholding(imageData, THRESHOLD_AMOUNT);
+                ctx.putImageData(imageData, 0, 0);
+
+                // Convert canvas to blob
+                canvas.toBlob(async (blob) => {
+                    try {
+                        if (blob) {
+                            await savePhoto(blob);
+                        }
+                    } catch (e) {
+                        console.error('Error in save flow:', e);
+                    } finally {
+                        startPreview();
+                        isProcessingCapture = false;
+                    }
+                }, 'image/jpeg', 0.95);
+
+            } catch (error) {
+                console.error('Error capturing photo:', error);
+                try { startPreview(); } catch (_) {}
+                isProcessingCapture = false;
+            }
+        }
+
+        async function savePhoto(blob) {
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `${MEDIA_TAG}-photo-${timestamp}.jpg`;
+                const file = new File([blob], filename, { type: 'image/jpeg' });
+
+                // Try Web Share API first (iOS Safari supports this better)
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'PixelArtCam v2 Photo',
+                            text: `Captured with ${MEDIA_TAG}`
+                        });
+                        
+                        showCaptureFeedback();
+                        return;
+                    } catch (shareError) {
+                        // If user cancels (AbortError) or disallows, just return gracefully
+                        if (shareError && (shareError.name === 'AbortError' || shareError.name === 'NotAllowedError')) {
+                            console.log('Share dismissed by user.');
+                            return;
+                        }
+                        // Otherwise, fall through to download
+                        console.log('Share failed, using download:', shareError);
+                    }
+                }
+
+                // Fallback to download method
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+                showCaptureFeedback();
+
+            } catch (error) {
+                console.error('Error saving photo:', error);
+                // Swallow to keep UI responsive
+            }
+        }
+
+        function toggleRecording() {}
+
+        function showCaptureFeedback() {
+            const button = document.getElementById('captureButton');
+            const originalBg = button.style.background;
+            button.style.background = 'rgba(0, 255, 0, 0.5)';
+            setTimeout(() => {
+                button.style.background = originalBg;
+            }, 300);
+        }
+
+        // Handle visibility change to resume camera
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && stream) {
+                try { video.play(); } catch (_) {}
+                // Avoid duplicating loops; cancel any stale frame first
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                    animationFrame = null;
+                }
+                if (!isProcessingCapture) {
+                    startPreview();
+                }
+            }
+        });
+
+        async function lockOrientation() {
+            const orientation = screen.orientation || screen.msOrientation || screen.mozOrientation;
+            if (orientation && orientation.lock) {
+                try {
+                    await orientation.lock('portrait');
+                } catch (error) {
+                    console.log('Orientation lock not supported:', error);
+                }
+            }
+        }
+
+        async function getCameraPermissionState() {
+            if (!navigator.permissions || !navigator.permissions.query) {
+                return localStorage.getItem(CAMERA_PERMISSION_KEY) || 'prompt';
+            }
+            try {
+                const status = await navigator.permissions.query({ name: 'camera' });
+                return status.state;
+            } catch (error) {
+                return localStorage.getItem(CAMERA_PERMISSION_KEY) || 'prompt';
+            }
+        }
+    </script>
+</body>
+</html>
